@@ -94,7 +94,7 @@ int32_t DS::thread_storage (int32_t n_super_cycle, int32_t myID, int32_t nProcs)
 			// load part from file
 			// cout << "load_"<<myID << "_" << i_part << endl;
 
-			FileName="rho_0.5_T_1.5/";
+			FileName="rho_0.5_T_1.5_species/";
 #if defined case_30
 			FileName+="case_30/stream_p_";
 #elif defined case_63
@@ -112,7 +112,7 @@ int32_t DS::thread_storage (int32_t n_super_cycle, int32_t myID, int32_t nProcs)
 #endif
 
 			FileName+=to_string(i_part);
-			//cout << FileName << endl;
+			cout << FileName << endl;
 			int32_t ret=FileFieldsToMem((int64_t*)&pdat,(char*)FileName.c_str(),1,dat_size);
 
 			block_check((double*)pdat[0],1);

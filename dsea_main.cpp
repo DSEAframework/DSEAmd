@@ -7,7 +7,6 @@ using namespace std;
 // this routine waits for output slots to become free and claims the slots for a block
 // todo: move into class
 void DS::part_out_ready_wait (int32_t i_part, int32_t i_center) {
-	// cout << "WORW" << i_part << endl;
 	for (int32_t j=-order_out;j<order_out+1;j++) {
 		int32_t k=i_part+j;
 		if ((k>=0) && (k<=n_part-1)) {
@@ -15,31 +14,22 @@ void DS::part_out_ready_wait (int32_t i_part, int32_t i_center) {
 			if (islot<0) islot+=n_store_out;
 			if (islot>=n_store_out) islot-=n_store_out;
 
-			if ((stat_mem_out[islot].state==mem_state_free)) {
+			if (stat_mem_out[islot].state==mem_state_free) {
 				// no waiting required
 				stat_mem_out[islot].i_part=k;
-				// cout << "part_out_ready_wait_a_" << islot << "_" << j << "_" << stat_mem_out[islot].i_part << "_" << stat_mem_out[islot].i_event << endl;
 			}
-			else if ((stat_mem_out[islot].state==mem_state_bussy)) {
-				// cout << "part_out_ready_wait_b_" << islot << "_" << j << "_" << stat_mem_out[islot].i_part << "_" << stat_mem_out[islot].i_event << endl;
+			else if (stat_mem_out[islot].state==mem_state_bussy) {
 				if (i_part==0) {
-				// cout << "part_out_ready_wait_c_" << islot << endl;
 				// at the start of the super cycle, the first part needs all memory slots in state free
 					// int nwait=0;
 					while (stat_mem_out[islot].state!=mem_state_free) {
-						// nwait++;
-						// if (nwait%100000==0) {cout << "stuck_a"<<mem[islot].state << endl; while(true){}}
 						}	// wait till slot is free
 
 					stat_mem_out[islot].i_part=k;
 				}
-				if ((j==order_out)) {//&&(i_part<n_part-order_out+1)) {
-				// cout << "part_out_ready_wait_d_" << islot << endl;
-				// wait for rightmost output but not at the end of the super cycle
+				if (j==order_out) {//&&(i_part<n_part-order_out+1)) {
 					int nwait=0;
 					while (stat_mem_out[islot].state!=mem_state_free) {
-						// nwait++;
-						// if (nwait%100000==0) {cout << "stuck_b"<<mem[islot].state << endl; cout << "stuck_b"<<mem[islot].i_event << endl; while(true){}}
 						}	// wait till slot is free
 
 					stat_mem_out[islot].i_part=k;
@@ -375,7 +365,26 @@ int32_t DS::thread_main (
 						// cout << p_in[i] << " " << p_out[i] << endl;
 						// cout << i << "_" << islot_in[i] << "_" << islot_out[i] << endl;
 					// }
-					caller_worker (p_in,p_out,part_to_process,i_super_cycle,order_in,order_out,i_worker,n_worker,&stream_worker,worker_threads_per_block,worker_n_block,myID);
+
+					// reference version - no optimizations
+					ref_caller_worker (p_in,p_out,part_to_process,i_super_cycle,order_in,order_out,i_worker,n_worker,&stream_worker,worker_threads_per_block,worker_n_block,myID);
+
+					// optimized version - DSEA paper
+					// b_caller_worker (p_in,p_out,part_to_process,i_super_cycle,order_in,order_out,i_worker,n_worker,&stream_worker,worker_threads_per_block,worker_n_block,myID);
+
+					// visualization
+					if (false)
+					if (my_id==0) {
+					if (worker_first) {
+					// if (i_super_cycle > 0)
+					if (i_super_cycle % 10 == 0) {
+						// cout << "output_pre_" << part_to_process << endl;
+						// caller_output_vtk(p_in[0],(double*)d_visual,&stream_worker,worker_threads_per_block,worker_n_block,myID,i_super_cycle);
+						caller_output_vtk_rectilinear(p_in[0],(double*)d_visual,&stream_worker,worker_threads_per_block,worker_n_block,myID,i_super_cycle,part_to_process);
+						// cout << "output_post" << endl;
+					}
+					}
+					}
 
 					// record event
 					if (worker_first) {

@@ -1,3 +1,6 @@
 .vscode
 dsea
 dsea-store
+*_hip.h
+*_hip.cpp
+*.hip

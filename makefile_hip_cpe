@@ -1,0 +1,152 @@
+MAKEFLAGS += -j8
+
+CPP_COMPIPLER=CC -x hip
+HIP_COMPIPLER=CC -x hip
+
+LINKER=CC
+
+FLAGS_ALL_CPP = -I./ -g -O0
+FLAGS_HIP_KERNEL = -I./ -g -O1
+
+hipify_cmd=hipify-perl
+hipify_flags=-print-stats
+
+all: dsea
+#  dsea_ucx_send dsea_ucx_rec
+
+dsea: obj/main.o obj/dsea_gpu.o obj/dsea_input.o obj/dsea_output.o obj/dsea_storage.o obj/dsea_main.o obj/dsea.o obj/dsea_block.o \
+	obj/dsea_kernel_ref.o obj/dsea_kernel_b.o obj/dsea_kernel_visual.o
+
+	$(LINKER) -g -fopenmp \
+	obj/main.o \
+	obj/dsea.o \
+	obj/dsea_block.o \
+	obj/dsea_gpu.o \
+	obj/dsea_kernel_ref.o \
+	obj/dsea_kernel_b.o \
+	obj/dsea_kernel_visual.o \
+	obj/dsea_input.o \
+	obj/dsea_output.o \
+	obj/dsea_storage.o \
+	obj/dsea_main.o \
+	-o dsea
+
+# dsea_ucx_send: obj/main_ucx_send.o obj/dsea_gpu.o obj/dsea_kernel.o obj/dsea_input.o obj/dsea_output_ucx.o obj/dsea_storage.o obj/dsea_main.o obj/dsea.o obj/dsea_block.o
+# 	$(CPP_COMPIPLER) -g -fopenmp \
+# 	obj/main_ucx_send.o \
+# 	obj/dsea.o \
+# 	obj/dsea_block.o \
+# 	obj/dsea_gpu.o \
+# 	obj/dsea_kernel.o \
+# 	obj/dsea_input.o \
+# 	obj/dsea_output_ucx.o \
+# 	obj/dsea_storage.o \
+# 	obj/dsea_main.o \
+# 	-o dsea_ucx_send \
+# 	-L$(CUDA_HOME)/lib64 -lcudart \
+# 	-L/fscratch/sw/ucx-1.17.0_dual_rail/lib -luct -lucs -lucp
+
+# dsea_ucx_rec: obj/main_ucx_rec.o obj/dsea_gpu.o obj/dsea_kernel.o obj/dsea_input_ucx.o obj/dsea_output.o obj/dsea_storage.o obj/dsea_main.o obj/dsea.o obj/dsea_block.o
+# 	$(CPP_COMPIPLER) -g -fopenmp \
+# 	obj/main_ucx_rec.o \
+# 	obj/dsea.o \
+# 	obj/dsea_block.o \
+# 	obj/dsea_gpu.o \
+# 	obj/dsea_kernel.o \
+# 	obj/dsea_input_ucx.o \
+# 	obj/dsea_output.o \
+# 	obj/dsea_storage.o \
+# 	obj/dsea_main.o \
+# 	-o dsea_ucx_rec \
+# 	-L$(CUDA_HOME)/lib64 -lcudart \
+# 	-L/fscratch/sw/ucx-1.17.0_dual_rail/lib -luct -lucs -lucp
+
+obj/main.o: main_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/main.o -c main_hip.cpp
+
+# obj/main_ucx_send.o: main.cpp dsea_hip.h makefile_hip_cpe
+# 	$(CPP_COMPIPLER) -D MRUCX_SEND $(FLAGS_ALL_CPP) -fopenmp -o obj/main_ucx_send.o -c main.cpp
+
+# obj/main_ucx_rec.o: main.cpp dsea_hip.h makefile_hip_cpe
+# 	$(CPP_COMPIPLER) -D MRUCX_REC $(FLAGS_ALL_CPP) -fopenmp -o obj/main_ucx_rec.o -c main.cpp
+
+obj/dsea.o: dsea_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea.o -c dsea_hip.cpp
+
+obj/dsea_block.o: dsea_block_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea_block.o -c dsea_block_hip.cpp
+
+obj/dsea_input.o: dsea_input_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea_input.o -c dsea_input_hip.cpp
+
+# obj/dsea_input_ucx.o: dsea_input_ucx.cpp dsea_hip.h makefile_hip_cpe
+# 	$(CUDA_COMPIPLER) $(FLAGS_CUDA) -Xcompiler -fopenmp -o obj/dsea_input_ucx.o -c dsea_input_ucx.cpp
+
+obj/dsea_output.o: dsea_output_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea_output.o -c dsea_output_hip.cpp
+
+# obj/dsea_output_ucx.o: dsea_output_ucx.cpp dsea_hip.h makefile_hip_cpe
+# 	$(CUDA_COMPIPLER) $(FLAGS_CUDA) -Xcompiler -fopenmp -o obj/dsea_output_ucx.o -c dsea_output_ucx.cpp
+
+obj/dsea_storage.o: dsea_storage.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea_storage.o -c dsea_storage.cpp
+
+obj/dsea_main.o: dsea_main_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -fopenmp -o obj/dsea_main.o -c dsea_main_hip.cpp
+
+obj/dsea_gpu.o: dsea_gpu_hip.cpp dsea_hip.h makefile_hip_cpe
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -I./ -o obj/dsea_gpu.o -c dsea_gpu_hip.cpp
+
+obj/dsea_kernel_ref.o: dsea_kernel_ref.hip dsea_hip.h makefile_hip_cpe
+	$(HIP_COMPIPLER) $(FLAGS_HIP_KERNEL) -I./ -o obj/dsea_kernel_ref.o -c dsea_kernel_ref.hip
+
+obj/dsea_kernel_b.o: dsea_kernel_b.hip dsea_hip.h makefile_hip_cpe
+	$(HIP_COMPIPLER) $(FLAGS_HIP_KERNEL) -I./ -o obj/dsea_kernel_b.o -c dsea_kernel_b.hip
+
+obj/dsea_kernel_visual.o: dsea_kernel_visual.hip dsea_hip.h makefile_hip_cpe
+	$(HIP_COMPIPLER) $(FLAGS_HIP_KERNEL) -I./ -o obj/dsea_kernel_visual.o -c dsea_kernel_visual.hip
+
+obj/dsea_store.o: dsea_store.cpp
+	$(CPP_COMPIPLER) $(FLAGS_ALL_CPP) -o obj/dsea_store.o -c dsea_store.cpp
+
+
+
+# hipify cuda
+main_hip.cpp: main.cpp
+	$(hipify_cmd) $(hipify_flags) -o main_hip.cpp main.cpp
+
+dsea_hip.cpp: dsea.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_hip.cpp dsea.cpp
+
+dsea_block_hip.cpp: dsea_block.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_block_hip.cpp dsea_block.cpp
+
+dsea_gpu_hip.cpp: dsea_gpu.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_gpu_hip.cpp dsea_gpu.cpp
+
+dsea_input_hip.cpp: dsea_input.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_input_hip.cpp dsea_input.cpp
+
+dsea_output_hip.cpp: dsea_output.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_output_hip.cpp dsea_output.cpp
+
+dsea_main_hip.cpp: dsea_main.cpp
+	$(hipify_cmd) $(hipify_flags) -o dsea_main_hip.cpp dsea_main.cpp
+
+dsea_kernel_ref.hip: dsea_kernel_ref.cu
+	$(hipify_cmd) $(hipify_flags) -o dsea_kernel_ref.hip dsea_kernel_ref.cu
+
+dsea_kernel_b.hip: dsea_kernel_b.cu
+	$(hipify_cmd) $(hipify_flags) -o dsea_kernel_b.hip dsea_kernel_b.cu
+
+dsea_kernel_visual.hip: dsea_kernel_visual.cu
+	$(hipify_cmd) $(hipify_flags) -o dsea_kernel_visual.hip dsea_kernel_visual.cu
+
+dsea_hip.h: dsea_cuda.h
+	$(hipify_cmd) $(hipify_flags) -o dsea_hip.h dsea_cuda.h
+
+
+
+clean:
+	rm -f obj/*.o dsea *_hip.cpp *_hip.h *.hip
+# 	dsea-store dsea_ucx_send dsea_ucx_rec

@@ -1,4 +1,10 @@
+//
 // Data Streaming for Explicit Algorithms - DSEA
+//
+// This code was used in the DSEA paper. The code contains optimizations for max performance.
+// The new atomic logic was implemented to get higher performance on HUNTER.
+// Kernel names start with "b_"
+//
 
 #include <dsea.h>
 #include <stdio.h>		// printf
@@ -23,7 +29,7 @@ void myprint(T head, Ts... tail)
 }
 
 // init block, i.e. reset counters, lists...
-__global__ void init_block(double * __restrict__ p_in) {
+__global__ void b_init_block(double * __restrict__ p_in) {
 	int32_t * p_in_i32 = (int32_t*) p_in;
 	// int64_t * p_in_i64 = (int64_t*) p_in;
 
@@ -33,7 +39,7 @@ __global__ void init_block(double * __restrict__ p_in) {
 		// int64_t i_part=p_in_i64[block_i_general_ipart];
 		// printf("init_%ld\n",p_in_i32[block_i_general_nmol*2+0]);
 
-		p_in_i32[block_i_general_nmol*2+0]=0;
+		p_in[block_i_general_nmol]=0;
 
 		p_in[block_i_general_add_U]=0;
 		p_in[block_i_general_add_V]=0;
@@ -51,7 +57,7 @@ __global__ void init_block(double * __restrict__ p_in) {
 }
 
 
-__global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
+__global__ void b_md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
 						/*order 0*/ double * __restrict__ p_in_c,
 						/*order 1*/ double * __restrict__ p_in_l, double * __restrict__ p_in_r,
 						/*order 0*/ double * __restrict__ p_out_c,
@@ -64,12 +70,9 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 						int64_t * __restrict__ p_sum_N,
 						double * __restrict__ p_tmp_f) {
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
-	// int32_t n_threads = blockDim.x*gridDim.x;
 
 	int32_t * p_in_c_i32 = (int32_t *)p_in_c;
 	int64_t * p_in_c_i64 = (int64_t*)p_in_c;
-
-	// int32_t * p_in_l_i32 = (int32_t *)p_in_l;
 
 	int32_t * p_in_r_i32 = (int32_t *)p_in_r;
 
@@ -101,12 +104,6 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 		double px=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0];
 		double py=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1];
 		double pz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2];
-		// double vx=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3];
-		// double vy=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4];
-		// double vz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5];
-		// double fx_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+6];
-		// double fy_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+7];
-		// double fz_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+8];
 		double fx=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+9];
 		double fy=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+10];
 		double fz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+11];
@@ -149,19 +146,12 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 
 
 			if (do_test==true) {
-			// atomicAdd((int*)&p_debug[4],1);
-
 				int ic_test=test_y*grid_nz+test_z;	// cell to test next
 				int n_c_test=-1;
 				
 				if (cx==0) {
-					// if ((cy>=0) &&(cz>=0)) {
-					// if (cz>=0) {
 						n_c_test=p_in_c_i32[block_offset_nm_cell*2+ic_test];		// number of molecules in cell to test
-					// }
 				}
-
-				// }
 				else if (cx==1) {
 					n_c_test=p_in_r_i32[block_offset_nm_cell*2+ic_test];		// number of molecules in cell to test
 				}
@@ -196,7 +186,6 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 
 							double RIJ2 = DX*DX + DY*DY + DZ*DZ;
 							if (RIJ2 <= HILF_3) {
-								// atomicAdd((int*)&p_debug[1],1);
 								double RIJ2I = 1./(RIJ2*md_box2);
 								double RIJ6I = RIJ2I*RIJ2I*RIJ2I;
 								double RIJ12I = RIJ6I*RIJ6I;
@@ -253,7 +242,6 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 
 						double RIJ2 = DX*DX + DY*DY + DZ*DZ;
 						if (RIJ2 <= HILF_3) {
-							// atomicAdd((int*)&p_debug[1],1);
 							double RIJ2I = 1./(RIJ2*md_box2);
 							double RIJ6I = RIJ2I*RIJ2I*RIJ2I;
 							double RIJ12I = RIJ6I*RIJ6I;
@@ -300,18 +288,13 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 // store molecule
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0]=px;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1]=py;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2]=pz;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3]=vx;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4]=vy;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5]=vz;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+9]=fx;	// f becomes f_alt
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+10]=fy;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+11]=fz;
 	
 		p_part_U[global_id]=U;
 		p_part_V[global_id]=V;
+
 		// p_part_vel[global_id]=sum_vel;
 		p_part_r_U[global_id]=Ur;
 		p_part_r_V[global_id]=Vr;
@@ -326,114 +309,7 @@ __global__ void md_v3a(int32_t i_worker, int32_t order_in, int32_t order_out, do
 	}
 }
 
-
-
-// __global__ void md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
-// 						/*order 0*/ double * __restrict__ p_in_c,
-// 						/*order 1*/ double * __restrict__ p_in_l, double * __restrict__ p_in_r,
-// 						/*order 0*/ double * __restrict__ p_out_c,
-// 						/*order 1*/ double * __restrict__ p_out_l, double * __restrict__ p_out_r,
-// 						int32_t * __restrict__ p_mol_work_list,
-// 						int32_t * __restrict__ p_debug,
-// 						double * __restrict__ p_part_U, double * __restrict__ p_part_V,
-// 						double * __restrict__ p_part_r_U, double * __restrict__ p_part_r_V,
-// 						double * __restrict__ p_part_vel,
-// 						int64_t * __restrict__ p_sum_N,
-// 						double * __restrict__ p_tmp_f) {
-// 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
-// 	// int32_t n_threads = blockDim.x*gridDim.x;
-
-// 	int32_t * p_in_c_i32 = (int32_t *)p_in_c;
-// 	// int64_t * p_in_c_i64 = (int64_t*)p_in_c;
-
-// 	// int32_t * p_in_l_i32 = (int32_t *)p_in_l;
-
-// 	// int32_t * p_in_r_i32 = (int32_t *)p_in_r;
-
-// 	// int64_t i_part=p_in_c_i64[block_i_general_ipart];
-// 	int32_t n_mol=p_in_c_i32[block_i_general_nmol*2+0];
-
-// 	// int32_t grid_nx=p_in_c_i64[block_i_general_nx];
-// 	// int32_t grid_ny=p_in_c_i64[block_i_general_ny];
-// 	// int32_t grid_nz=p_in_c_i64[block_i_general_nz];
-
-// 	// int32_t local_id = threadIdx.x;
-
-
-// 	if (global_id<n_mol) {
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // load molecule
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// 		int32_t list_i_c=p_mol_work_list[global_id*2+0];
-// 		int32_t list_i_mol=p_mol_work_list[global_id*2+1];
-
-// 		int32_t i_mol=p_in_c_i32[block_offset_cell_list*2+list_i_c*c_mol_max+list_i_mol];
-
-// 		// double px=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0];
-// 		// double py=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1];
-// 		// double pz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2];
-// 		double vx=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3];
-// 		double vy=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4];
-// 		double vz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5];
-// 		double fx_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+6];
-// 		double fy_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+7];
-// 		double fz_alt=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+8];
-// 		double fx=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+9];
-// 		double fy=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+10];
-// 		double fz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+11];
-
-// 		double tmp_fx=p_tmp_f[3*i_mol+0];
-// 		double tmp_fy=p_tmp_f[3*i_mol+1];
-// 		double tmp_fz=p_tmp_f[3*i_mol+2];
-// 		fx+=tmp_fx;
-// 		fy+=tmp_fy;
-// 		fz+=tmp_fz;
-
-// 		p_tmp_f[3*i_mol+0]=0;
-// 		p_tmp_f[3*i_mol+1]=0;
-// 		p_tmp_f[3*i_mol+2]=0;
-
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // 2nd part of verlet integrator: new velocity
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// 		double HILF_2 = 0.5*md_dt/md_box;
-// 		vx+=(fx+fx_alt)*HILF_2;
-// 		vy+=(fy+fy_alt)*HILF_2;
-// 		vz+=(fz+fz_alt)*HILF_2;
-
-// 		double sum_vel=vx*vx+vy*vy+vz*vz;
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // store molecule
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// 		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0]=px;
-// 		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1]=py;
-// 		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2]=pz;
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3]=vx;
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4]=vy;
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5]=vz;
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+6]=fx;	// f becomes f_alt
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+7]=fy;
-// 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+8]=fz;
-	
-// 		// p_part_U[global_id]=U;
-// 		// p_part_V[global_id]=V;
-// 		p_part_vel[global_id]=sum_vel;
-// 		// p_part_r_U[global_id]=Ur;
-// 		// p_part_r_V[global_id]=Vr;
-// 	}
-// 	else {
-// 		// thread does not process a particle
-// 		// p_part_U[global_id]=0;
-// 		// p_part_V[global_id]=0;
-// 		p_part_vel[global_id]=0;
-// 		// p_part_r_U[global_id]=0;
-// 		// p_part_r_V[global_id]=0;
-// 	}
-// }
-
-
-__global__ void md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
+__global__ void b_md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
 						/*order 0*/ double * __restrict__ p_in_c,
 						/*order 1*/ double * __restrict__ p_in_l, double * __restrict__ p_in_r,
 						/*order 0*/ double * __restrict__ p_out_c,
@@ -446,37 +322,15 @@ __global__ void md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, d
 						int64_t * __restrict__ p_sum_N,
 						double * __restrict__ p_tmp_f) {
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
-	// int32_t n_threads = blockDim.x*gridDim.x;
-
 	int32_t * p_in_c_i32 = (int32_t *)p_in_c;
-	// int64_t * p_in_c_i64 = (int64_t*)p_in_c;
-
-	// int32_t * p_in_l_i32 = (int32_t *)p_in_l;
-
-	// int32_t * p_in_r_i32 = (int32_t *)p_in_r;
-
-	// int64_t i_part=p_in_c_i64[block_i_general_ipart];
 	int32_t n_mol=p_in_c_i32[block_i_general_nmol*2+0];
-
-	// int32_t grid_nx=p_in_c_i64[block_i_general_nx];
-	// int32_t grid_ny=p_in_c_i64[block_i_general_ny];
-	// int32_t grid_nz=p_in_c_i64[block_i_general_nz];
-
-	// int32_t local_id = threadIdx.x;
-
 
 	if (global_id<n_mol) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // load molecule
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		// int32_t list_i_c=p_mol_work_list[global_id*2+0];
-		// int32_t list_i_mol=p_mol_work_list[global_id*2+1];
-
 		int32_t i_mol=global_id;//p_in_c_i32[block_offset_cell_list*2+list_i_c*c_mol_max+list_i_mol];
 
-		// double px=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0];
-		// double py=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1];
-		// double pz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2];
 		double vx=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3];
 		double vy=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4];
 		double vz=p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5];
@@ -511,9 +365,6 @@ __global__ void md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, d
 // store molecule
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+0]=px;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+1]=py;
-		// p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+2]=pz;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+3]=vx;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+4]=vy;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+5]=vz;
@@ -521,23 +372,15 @@ __global__ void md_v3aa(int32_t i_worker, int32_t order_in, int32_t order_out, d
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+7]=fy;
 		p_in_c[block_offset_mol+i_mol*block_doubles_per_mol+8]=fz;
 	
-		// p_part_U[global_id]=U;
-		// p_part_V[global_id]=V;
 		p_part_vel[global_id]=sum_vel;
-		// p_part_r_U[global_id]=Ur;
-		// p_part_r_V[global_id]=Vr;
 	}
 	else {
 		// thread does not process a particle
-		// p_part_U[global_id]=0;
-		// p_part_V[global_id]=0;
 		p_part_vel[global_id]=0;
-		// p_part_r_U[global_id]=0;
-		// p_part_r_V[global_id]=0;
 	}
 }
 
-__global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
+__global__ void b_md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, double * p_sum,
 						/*order 0*/ double * __restrict__ p_in_c,
 						/*order 1*/ double * __restrict__ p_in_l, double * __restrict__ p_in_r,
 						/*order 0*/ double * __restrict__ p_out_c,
@@ -545,41 +388,37 @@ __global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, do
 						int32_t * __restrict__ p_mol_work_list,
 						int32_t * __restrict__ p_debug						) {
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
-	// int32_t n_threads = blockDim.x*gridDim.x;
 
 	int32_t * p_in_c_i32 = (int32_t *)p_in_c;
 	int64_t * p_in_c_i64 = (int64_t*)p_in_c;
-
-	// int32_t * p_in_l_i32 = (int32_t *)p_in_l;
-	// int64_t * p_in_l_i64 = (int64_t*)p_in_l;
-
-	// int32_t * p_in_r_i32 = (int32_t *)p_in_r;
-	// int64_t * p_in_r_i64 = (int64_t*)p_in_r;
-
 	int32_t * p_out_c_i32 = (int32_t *)p_out_c;
-	// int64_t * p_out_c_i64 = (int64_t*)p_out_c;
-
 	int32_t * p_out_l_i32 = (int32_t *)p_out_l;
-	// int64_t * p_out_l_i64 = (int64_t*)p_out_l;
-
 	int32_t * p_out_r_i32 = (int32_t *)p_out_r;
-	// int64_t * p_out_r_i64 = (int64_t*)p_out_r;
-
 
 	double dxdydz=p_in_c[block_i_general_dxdydz];
-	// int64_t n_part=p_in_c_i64[block_i_general_npart];
 	int64_t i_part=p_in_c_i64[block_i_general_ipart];
 	int32_t n_mol=p_in_c_i32[block_i_general_nmol*2+0];
 
-	// int32_t grid_nx=p_in_c_i64[block_i_general_nx];
-	// int32_t grid_ny=p_in_c_i64[block_i_general_ny];
 	int32_t grid_nz=p_in_c_i64[block_i_general_nz];
 
-	if (global_id==0) {
+
+	__shared__ int32_t fast_atomic[3];
+	__shared__ int32_t i_store_offset[3];
+
+
+
+	if (threadIdx.x==0) {
+		fast_atomic[0]=0;
+		fast_atomic[1]=0;
+		fast_atomic[2]=0;
+	}
+	__syncthreads();
+
+	// if (global_id==0) {
 	// 	int32_t n_threads = blockDim.x*gridDim.x;
 		// if (n_threads<n_mol) printf("not_enough_threads_%i_%i\n",n_threads,n_mol);
 		// printf("p_sum[0]_%e\n",p_sum[0]);
-	}
+	// }
 
 	// copy meta data to output center
 	int32_t general_doubles_to_copy=6;
@@ -667,7 +506,22 @@ __global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, do
 			int32_t i_mol_c=atomicAdd((int*)&p_out_c_i32[block_offset_nm_cell*2+i_c_part],1);
 
 			// index of molecule in block list
-			int32_t i_store=atomicAdd((int*)&p_out_c_i32[block_i_general_nmol*2+0],1);
+			// different atomic logic
+
+			// V1
+			// int32_t i_store=atomicAdd((int*)&p_out_c_i32[block_i_general_nmol*2+0],1);
+
+			// V2
+			int32_t i_store=atomicAdd(&fast_atomic[0],1);
+			__syncthreads();
+			if (i_store==0) {
+				// only one thread does this
+				i_store_offset[0]=atomicAdd((int*)&p_out_c_i32[block_i_general_nmol*2+0],fast_atomic[0]);
+			}
+			// __syncthreads();
+			i_store+=i_store_offset[0];
+
+
 
 			p_out_c_i32[block_offset_cell_list*2+i_c_part*c_mol_max+i_mol_c]=i_store;
 
@@ -689,7 +543,19 @@ __global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, do
 			int32_t i_mol_c=atomicAdd((int*)&p_out_r_i32[block_offset_nm_cell*2+i_c_part],1);
 
 			// index of molecule in block list
-			int32_t i_store=atomicAdd((int*)&p_out_r_i32[block_i_general_nmol*2+0],1);
+			// V1
+			// int32_t i_store=atomicAdd((int*)&p_out_r_i32[block_i_general_nmol*2+0],1);
+
+			// V2
+			int32_t i_store=atomicAdd(&fast_atomic[1],1);
+			__syncthreads();
+			if (i_store==0) {
+				// only one thread does this
+				i_store_offset[1]=atomicAdd((int*)&p_out_r_i32[block_i_general_nmol*2+0],fast_atomic[1]);
+			}
+			// __syncthreads();
+			i_store+=i_store_offset[1];
+
 
 			p_out_r_i32[block_offset_cell_list*2+i_c_part*c_mol_max+i_mol_c]=i_store;
 
@@ -711,7 +577,20 @@ __global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, do
 			int32_t i_mol_c=atomicAdd((int*)&p_out_l_i32[block_offset_nm_cell*2+i_c_part],1);
 
 			// index of molecule in block list
-			int32_t i_store=atomicAdd((int*)&p_out_l_i32[block_i_general_nmol*2+0],1);
+			// v1
+			// int32_t i_store=atomicAdd((int*)&p_out_l_i32[block_i_general_nmol*2+0],1);
+
+			// V2
+			int32_t i_store=atomicAdd(&fast_atomic[2],1);
+			__syncthreads();
+			if (i_store==0) {
+				// only one thread does this
+				i_store_offset[2]=atomicAdd((int*)&p_out_l_i32[block_i_general_nmol*2+0],fast_atomic[2]);
+			}
+			// __syncthreads();
+			i_store+=i_store_offset[2];
+
+
 
 			p_out_l_i32[block_offset_cell_list*2+i_c_part*c_mol_max+i_mol_c]=i_store;
 
@@ -741,9 +620,7 @@ __global__ void md_v3b(int32_t i_worker, int32_t order_in, int32_t order_out, do
 
 
 
-
-
-__global__ void md_thermo_a(double * __restrict__ p_in, double * __restrict__ p_sum) {
+__global__ void b_md_thermo_a(double * __restrict__ p_in, double * __restrict__ p_sum) {
 
 	__shared__ double sdata[32];
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
@@ -785,7 +662,7 @@ __global__ void md_thermo_a(double * __restrict__ p_in, double * __restrict__ p_
 }
 
 
-__global__ void md_thermo_b(double * __restrict__ p_in, double * __restrict__ p_sum) {
+__global__ void b_md_thermo_b(double * __restrict__ p_in, double * __restrict__ p_sum) {
 	int32_t * p_in_i32 = (int32_t *)p_in;
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
 	int32_t n_mol=p_in_i32[block_i_general_nmol*2+0];
@@ -816,7 +693,7 @@ __global__ void md_thermo_b(double * __restrict__ p_in, double * __restrict__ p_
 // 	}
 // }
 
-__global__ void stat_collect(	double * __restrict__ p_sum_u, double * __restrict__ p_sum_v, double * __restrict__ p_sum_vel,
+__global__ void b_stat_collect(	double * __restrict__ p_sum_u, double * __restrict__ p_sum_v, double * __restrict__ p_sum_vel,
 								double * __restrict__ p_result, int32_t i_part, int32_t n_part) {
 	// printf("debb_%e_%e_%e\n",a[0],b[0],b[1]);
 	p_sum_u[i_part]+=p_result[0];
@@ -830,7 +707,7 @@ __global__ void stat_collect(	double * __restrict__ p_sum_u, double * __restrict
 
 
 // each thread fills the list of molecules for one cell
-__global__ void md_fill_mol_work_list(int32_t * __restrict__ mol_list, int32_t * __restrict__ nm, int32_t * __restrict__ prefix_sum, int32_t n) {
+__global__ void b_md_fill_mol_work_list(int32_t * __restrict__ mol_list, int32_t * __restrict__ nm, int32_t * __restrict__ prefix_sum, int32_t n) {
 	int32_t global_id = blockIdx.x*blockDim.x+threadIdx.x;
 	// int32_t block_id=blockIdx.x;
 	// int32_t tid=threadIdx.x;
@@ -849,7 +726,7 @@ __global__ void md_fill_mol_work_list(int32_t * __restrict__ mol_list, int32_t *
 	
 }
 
-void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t i_super_cycle,
+void DS::b_caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t i_super_cycle,
 						int32_t order_in, int32_t order_out, int32_t iworker, int32_t nworker,
 						cudaStream_t * stream, int32_t threads_per_block, int32_t blockSize, int32_t myID) {
 
@@ -1001,15 +878,15 @@ void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t
 
 	// init output arrays
 	if (i_part==0) {
-		for (int32_t i=0;i<order_out+1;i++) init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[i*2]);
+		for (int32_t i=0;i<order_out+1;i++) b_init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[i*2]);
 	}
 	else if (i_part>=(n_part-order_out)) {
 		// no init required
 
-		if (p_out[order_out*2]!=(double*)-1) init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[order_out*2]);
+		if (p_out[order_out*2]!=(double*)-1) b_init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[order_out*2]);
 	}
 	else {
-		init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[order_out*2]);
+		b_init_block<<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>(p_out[order_out*2]);
 	}
 
 	// if (false)
@@ -1044,7 +921,7 @@ void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t
 	// cout << "size_temp_b" << size_temp << endl;
 
 	// fill mol work list
-	md_fill_mol_work_list <<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>((int32_t*)d_mol_list,&my_d_in[block_offset_nm_cell*2],(int32_t*)d_prefix_sum,block_ncc);
+	b_md_fill_mol_work_list <<<block_ncc/threads_per_block+1,threads_per_block,0,*stream>>>((int32_t*)d_mol_list,&my_d_in[block_offset_nm_cell*2],(int32_t*)d_prefix_sum,block_ncc);
 
 
 	// if (i_part==0) {
@@ -1064,7 +941,7 @@ void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t
 	// if (FLGENSEM_NVT) { scaleVelocity(); }
 	// verlet1();
 
-	md_v3a <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
+	b_md_v3a <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
 												p_in[0],p_in[1],p_in[2],
 												p_out[0],p_out[1],p_out[2],
 												(int32_t*)d_mol_list,
@@ -1075,7 +952,7 @@ void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t
 												(int64_t*)d_sum_N,
 												(double*)d_tmp_f);
 
-	md_v3aa <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
+	b_md_v3aa <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
 												p_in[0],p_in[1],p_in[2],
 												p_out[0],p_out[1],p_out[2],
 												(int32_t*)d_mol_list,
@@ -1094,13 +971,13 @@ void DS::caller_worker (double ** p_in, double ** p_out, int32_t i_part, int32_t
 	cub::DeviceReduce::Sum((void*)d_temp,size_temp,(double*)d_part_r_v,(double*)d_result+4,blockSize*threads_per_block,*stream);
 
 	// thermostat required for all versions
-	md_thermo_a <<<128,threads_per_block,0,*stream>>>(p_in[0],(double*)d_sum);
-	md_thermo_b <<<1,threads_per_block,0,*stream>>>(p_in[0],(double*)d_sum);
+	b_md_thermo_a <<<128,threads_per_block,0,*stream>>>(p_in[0],(double*)d_sum);
+	b_md_thermo_b <<<1,threads_per_block,0,*stream>>>(p_in[0],(double*)d_sum);
 
-	stat_collect <<<1,1,0,*stream>>> (	(double*)d_sum_u,(double*)d_sum_v,(double*)d_sum_vel,
+	b_stat_collect <<<1,1,0,*stream>>> (	(double*)d_sum_u,(double*)d_sum_v,(double*)d_sum_vel,
 										(double*)d_result,i_part,my_n_part);
 
-	md_v3b <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
+	b_md_v3b <<<blockSize,threads_per_block,0,*stream>>>(iworker,order_in,order_out,(double*)d_sum,
 												p_in[0],p_in[1],p_in[2],
 												p_out[0],p_out[1],p_out[2],
 												(int32_t*)d_mol_list,

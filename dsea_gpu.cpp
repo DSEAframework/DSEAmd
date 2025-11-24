@@ -123,7 +123,13 @@ int32_t DS::InitCuda() {
 	cudaMalloc((void**)&d_tmp_f,3*10000000*sizeof(double));															cudaCheckError(__LINE__,__FILE__);
 	n_alloc+=3*10000000*sizeof(double);
 
+	int64_t size_visual=1600000000;
+	cudaMalloc((void**)&d_visual,size_visual);									cudaCheckError(__LINE__,__FILE__);
+	n_alloc+=size_visual;
+
 	cout << (double)n_alloc/1.0e9 << "_#n_alloc" << endl;
+
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // algorithm specific host memory
@@ -171,25 +177,35 @@ void DS::FreeHostStore(int32_t n) {
 }
 
 void DS::FreeCuda() {
+	return;
 	for (int32_t is=0;is<n_worker*3;is++) {
 		cudaFree((void*)d_store[is]);				cudaCheckError(__LINE__,__FILE__);
 	}
+	cout << "a1" << endl;
 	delete [] d_store;
+	cout << "a2" << endl;
+
 
 	for (int32_t is=0;is<n_store_in;is++) {
 		cudaFree((void*)d_in[is]);					cudaCheckError(__LINE__,__FILE__);
 	}
+	cout << "a3" << endl;
 	delete [] d_in;
+	cout << "a4" << endl;
 
 	for (int32_t is=0;is<n_store_out;is++) {
 		cudaFree((void*)d_out[is]);					cudaCheckError(__LINE__,__FILE__);
 	}
+	cout << "a5" << endl;
 	delete [] d_out;
+	cout << "a6" << endl;
 
 	for (int32_t is=0;is<n_store_worker*(n_worker-1);is++) {
 		cudaFree((void*)d_worker[is]);					cudaCheckError(__LINE__,__FILE__);
 	}
+	cout << "a7" << endl;
 	delete [] d_worker;
+	cout << "a8" << endl;
 
 }
 
